@@ -18,6 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
     steps:
       - name: 📂 Clone repository
@@ -52,7 +55,6 @@ jobs:
             exit 1
           fi
           
-          # Convert spaces to dash in URL
           CORRECTED_URL=$(echo "$RAW_URL" | sed 's/%20/-/g' | sed 's/ /-/g')
           
           echo "✅ Direct link received!"
@@ -69,7 +71,6 @@ jobs:
           
           mkdir -p downloads
           
-          # Check if file already exists
           BASE_NAME="${ORIGINAL_NAME%.*}"
           EXT="${ORIGINAL_NAME##*.}"
           if [[ "$EXT" == "$ORIGINAL_NAME" ]]; then
@@ -81,7 +82,6 @@ jobs:
           FINAL_NAME="$ORIGINAL_NAME"
           COUNTER=1
           
-          # Keep checking and increment counter until unique name found
           while [ -f "downloads/$FINAL_NAME" ]; do
             FINAL_NAME="${BASE_NAME}_${COUNTER}${EXT}"
             COUNTER=$((COUNTER + 1))
@@ -158,89 +158,3 @@ jobs:
               mv "$file" "$NEW_NAME"
             else
               CLEAN_NAME=$(echo "$file" | sed 's/[^a-zA-Z0-9._-]/_/g' | sed 's/__*/_/g')
-              if [ "$file" != "$CLEAN_NAME" ]; then
-                echo "   📝 Cleaning: $file -> $CLEAN_NAME"
-                mv "$file" "$CLEAN_NAME"
-              fi
-            fi
-          done
-          
-          cd ..
-
-      - name: 📤 Upload to GitHub (Batch upload - 1 file at a time)
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          if [ ! -d "downloads" ] || [ -z "$(ls -A downloads 2>/dev/null)" ]; then
-            echo "⚠️ No files to upload!"
-            exit 1
-          fi
-          
-          # Get list of new files only (not already in git)
-          NEW_FILES=()
-          for file in downloads/*; do
-            filename=$(basename "$file")
-            if ! git ls-files --error-unmatch "downloads/$filename" &>/dev/null; then
-              NEW_FILES+=("$filename")
-            else
-              echo "⏭️ Skipping already uploaded file: $filename"
-            fi
-          done
-          
-          TOTAL=${#NEW_FILES[@]}
-          
-          if [ "$TOTAL" -eq 0 ]; then
-            echo "✅ No new files to upload!"
-            exit 0
-          fi
-          
-          echo "═══════════════════════════════════════════════════════════════"
-          echo "📦 Total new files to upload: $TOTAL"
-          echo "═══════════════════════════════════════════════════════════════"
-          
-          # Upload ONE file at a time
-          for (( i=0; i<TOTAL; i++ )); do
-            echo ""
-            echo "🚀 Uploading file $((i+1)) of $TOTAL: ${NEW_FILES[$i]}"
-            
-            git add "downloads/${NEW_FILES[$i]}"
-            git commit -m "Add ${NEW_FILES[$i]} [skip ci]"
-            
-            for attempt in 1 2 3; do
-              if git push origin main 2>&1; then
-                echo "   ✅ Uploaded successfully"
-                break
-              else
-                if [ $attempt -lt 3 ]; then
-                  echo "   ⚠️ Push failed, retry $attempt/3..."
-                  git reset --soft HEAD~1
-                  sleep 5
-                else
-                  echo "   ❌ Failed to upload ${NEW_FILES[$i]}"
-                  git reset --soft HEAD~1
-                fi
-              fi
-            done
-            
-            sleep 2
-          done
-          
-          echo ""
-          echo "═══════════════════════════════════════════════════════════════"
-          echo "🎉 All $TOTAL new files uploaded successfully!"
-          echo ""
-          echo "📂 Uploaded files:"
-          ls -lh downloads/
-          echo "═══════════════════════════════════════════════════════════════"
-
-      - name: 📋 Final report
-        if: always()
-        run: |
-          echo ""
-          echo "┌─────────────────────────────────────────────────────────────┐"
-          echo "│                   Download Final Report                    │"
-          echo "├─────────────────────────────────────────────────────────────┤"
-          echo "│ 🔗 Link: ${{ github.event.inputs.telegram_link }}"
-          echo "│ 📁 Path: ./downloads/"
-          echo "└─────────────────────────────────────────────────────────────┘"
