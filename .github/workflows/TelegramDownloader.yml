@@ -34,9 +34,36 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y curl jq zip openssl
 
-      - name: 📡 Get direct link and fix spaces
-        id: get_link
-        run: |
+  - name: 📡 Get direct link and fix spaces
+  id: get_link
+  run: |
+    TELEGRAM_LINK="${{ github.event.inputs.telegram_link }}"
+
+    echo "═══════════════════════════════════════════════"
+    echo "🔍 DEBUG: Requesting direct link"
+    echo "═══════════════════════════════════════════════"
+
+    RESPONSE=$(curl -s -X POST \
+      -H "User-Agent: Mozilla/5.0" \
+      -d "telegram_link=$TELEGRAM_LINK" \
+      https://telegramdownloader.net/proxy.php)
+
+    echo "🔎 SERVER RESPONSE BELOW:"
+    echo "---------------------------------------------"
+    echo "$RESPONSE"
+    echo "---------------------------------------------"
+
+    RAW_URL=$(echo "$RESPONSE" | jq -r '.data.data.link')
+    FILE_NAME=$(echo "$RESPONSE" | jq -r '.data.data.file_name')
+
+    if [ -z "$RAW_URL" ] || [ "$RAW_URL" = "null" ]; then
+      echo "❌ Error: Could not get download link!"
+      exit 1
+    fi
+
+    echo "download_url=$RAW_URL" >> $GITHUB_OUTPUT
+    echo "original_name=$FILE_NAME" >> $GITHUB_OUTPUT
+
           TELEGRAM_LINK="${{ github.event.inputs.telegram_link }}"
           
           echo "═══════════════════════════════════════════════════════════════"
